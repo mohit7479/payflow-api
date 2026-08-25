@@ -1,4 +1,7 @@
 package com.payflow.payflow.user.dto;
 
-public record CreateUserRequest(String email, String fullName)  {
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
+public record CreateUserRequest(@NotBlank @Email String email,@NotBlank String fullName)  {
 }

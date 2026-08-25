@@ -1,5 +1,6 @@
 package com.payflow.payflow.wallet;
 
+import com.payflow.payflow.common.exception.ResourceNotFoundException;
 import com.payflow.payflow.user.User;
 import com.payflow.payflow.user.UserRepository;
 import com.payflow.payflow.wallet.dto.CreateWalletRequest;
@@ -20,7 +21,7 @@ public class WalletService {
 
 
     public WalletResponse createWallet(CreateWalletRequest request) {
-        User user = userRepository.findById(request.userId()).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(request.userId()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Wallet wallet = new Wallet(user, request.currency());
         Wallet savedWallet = walletRepository.save(wallet);
 
