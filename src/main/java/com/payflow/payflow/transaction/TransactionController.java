@@ -1,0 +1,25 @@
+package com.payflow.payflow.transaction;
+
+import com.payflow.payflow.transaction.dto.CreateTransactionRequest;
+import com.payflow.payflow.transaction.dto.TransactionResponse;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/transactions")
+public class TransactionController {
+
+    private  final TransactionService transactionService;
+
+    public TransactionController (TransactionService transactionService){
+        this.transactionService=transactionService;
+    }
+
+    @PostMapping
+    public TransactionResponse createTransaction (@RequestBody CreateTransactionRequest request){
+        return transactionService.createTransaction(request);
+    }
+
+}

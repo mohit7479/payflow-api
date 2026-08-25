@@ -42,8 +42,8 @@ int total = addNumbers(5, 3); // 8
 ### Classes & Objects — blueprint vs. actual thing
 ```java
 public class Book {
-   String title;
-   int pages;
+    String title;
+    int pages;
 }
 
 Book book1 = new Book();  // creates a real object from the blueprint
@@ -55,13 +55,13 @@ Each object created with `new` has its own independent copy of the fields.
 ### Constructors — set up an object's initial state
 ```java
 public class Book {
-   String title;
-   int pages;
+    String title;
+    int pages;
 
-   Book(String title, int pages) {   // NOTE: no return type, not even void
-      this.title = title;
-      this.pages = pages;
-   }
+    Book(String title, int pages) {   // NOTE: no return type, not even void
+        this.title = title;
+        this.pages = pages;
+    }
 }
 
 Book book1 = new Book("Java Basics", 100);
@@ -73,11 +73,11 @@ Book book1 = new Book("Java Basics", 100);
 ### Conditionals
 ```java
 if (pages > 20) {
-        System.out.println("long book");
+    System.out.println("long book");
 } else if (pages > 300) {
-        System.out.println("very long book");
+    System.out.println("very long book");
 } else {
-        System.out.println("short book");
+    System.out.println("short book");
 }
 ```
 - `=` assigns a value. `==` checks equality. Mixing these up is a classic bug.
@@ -86,19 +86,19 @@ if (pages > 20) {
 ```java
 // for loop — known number of repetitions
 for (int i = 1; i <= 5; i++) {
-        System.out.println(i);
+    System.out.println(i);
 }
 
 // while loop — repeat while condition holds
 int count = 0;
 while (count < 3) {
-        System.out.println(count);
-count++;
-        }
+    System.out.println(count);
+    count++;
+}
 
 // for-each loop — visit every item in a collection
-        for (Book b : books) {
-        System.out.println(b.title);
+for (Book b : books) {
+    System.out.println(b.title);
 }
 ```
 
@@ -111,16 +111,16 @@ count++;
 **1. Encapsulation** — protect internal data, expose only controlled access
 ```java
 public class Book {
-   private String title;   // private = hidden from outside
-   private int pages;
+    private String title;   // private = hidden from outside
+    private int pages;
 
-   public Book(String title, int pages) {
-      if (pages < 0) throw new IllegalArgumentException("Pages cannot be negative");
-      this.title = title;
-      this.pages = pages;
-   }
+    public Book(String title, int pages) {
+        if (pages < 0) throw new IllegalArgumentException("Pages cannot be negative");
+        this.title = title;
+        this.pages = pages;
+    }
 
-   public String getTitle() { return title; }
+    public String getTitle() { return title; }
 }
 ```
 This is why `User`/`Wallet` entities use `private` fields with a `protected` no-arg constructor — controlling *how* objects are built and accessed.
@@ -131,26 +131,26 @@ This is why `User`/`Wallet` entities use `private` fields with a `protected` no-
 **3. Inheritance** — share behavior between related classes
 ```java
 public class Book {
-   protected String title;
-   protected int pages;
+    protected String title;
+    protected int pages;
 
-   public Book(String title, int pages) {
-      this.title = title;
-      this.pages = pages;
-   }
+    public Book(String title, int pages) {
+        this.title = title;
+        this.pages = pages;
+    }
 
-   public void describe() {
-      System.out.println(title + " has " + pages + " pages");
-   }
+    public void describe() {
+        System.out.println(title + " has " + pages + " pages");
+    }
 }
 
 public class Ebook extends Book {
-   private double fileSizeMb;
+    private double fileSizeMb;
 
-   public Ebook(String title, int pages, double fileSizeMb) {
-      super(title, pages);           // calls Book's constructor
-      this.fileSizeMb = fileSizeMb;
-   }
+    public Ebook(String title, int pages, double fileSizeMb) {
+        super(title, pages);           // calls Book's constructor
+        this.fileSizeMb = fileSizeMb;
+    }
 }
 ```
 - `extends` — "is a kind of"
@@ -160,10 +160,10 @@ public class Ebook extends Book {
 **4. Polymorphism** — one interface, many behaviors
 ```java
 public class Ebook extends Book {
-   @Override
-   public void describe() {
-      System.out.println(title + " is an ebook, " + fileSizeMb + "MB");
-   }
+    @Override
+    public void describe() {
+        System.out.println(title + " is an ebook, " + fileSizeMb + "MB");
+    }
 }
 
 Book b = new Ebook("Spring Guide", 200, 15.5);
@@ -174,14 +174,14 @@ The **actual object type** decides which method runs, not the declared variable 
 ### Interfaces — a contract with no implementation
 ```java
 public interface Payable {
-   void pay(double amount);
+    void pay(double amount);
 }
 
 public class CreditCard implements Payable {
-   @Override
-   public void pay(double amount) {
-      System.out.println("Paid " + amount);
-   }
+    @Override
+    public void pay(double amount) {
+        System.out.println("Paid " + amount);
+    }
 }
 ```
 Spring Data JPA repositories are interfaces — you declare *what* you want, Spring generates the real implementation at runtime.
@@ -210,10 +210,10 @@ books.add(book1);
 books.add(book2);
 
 for (Book b : books) {
-        System.out.println(b.title);
+    System.out.println(b.title);
 }
 
-        books.size();       // count
+books.size();       // count
 books.get(0);        // access by index
 ```
 
@@ -250,9 +250,9 @@ Syntax: `(inputs) -> expression`. Parentheses optional with exactly one input.
 ### Stream pipeline
 ```java
 List<String> longBookTitles = books.stream()
-        .filter(book -> book.pages > 100)   // keep matching items
-        .map(book -> book.title)             // transform each item
-        .collect(Collectors.toList());       // gather into a list
+    .filter(book -> book.pages > 100)   // keep matching items
+    .map(book -> book.title)             // transform each item
+    .collect(Collectors.toList());       // gather into a list
 ```
 
 - `.stream()` — turns a collection into a pipeline
@@ -263,8 +263,8 @@ List<String> longBookTitles = books.stream()
 
 ```java
 int totalPages = books.stream()
-        .map(book -> book.pages)
-        .reduce(0, (sum, pages) -> sum + pages);
+    .map(book -> book.pages)
+    .reduce(0, (sum, pages) -> sum + pages);
 ```
 
 ---
@@ -275,8 +275,8 @@ A fixed, named set of allowed values — the compiler enforces that nothing else
 
 ```java
 public enum TransactionType {
-   CREDIT,
-   DEBIT
+    CREDIT,
+    DEBIT
 }
 ```
 
@@ -303,10 +303,10 @@ Any non-primitive type can be `null`. Always relevant when a field is an object 
 ### Exceptions — try/catch/throw
 ```java
 try {
-int result = 10 / 0;
+    int result = 10 / 0;
 } catch (ArithmeticException e) {
-        System.out.println("Error: " + e.getMessage());
-        }
+    System.out.println("Error: " + e.getMessage());
+}
 ```
 - `try { }` — code that might fail
 - `catch (Type e) { }` — runs only if that specific failure happens
@@ -667,6 +667,144 @@ curl -X POST http://localhost:8080/api/users \
 
 ---
 
+## Wallet and Transaction — Repeating the Pattern
+
+### Why DTOs use IDs, not nested entities
+
+A client can't send a whole `User`/`Wallet` object over HTTP — only an identifier. And a response should never embed a full related entity (leaks internals, risks `LazyInitializationException` on `LAZY` relationships). Always reduce a relationship to its `UUID` in both directions:
+
+```java
+// wallet/dto/CreateWalletRequest.java
+public record CreateWalletRequest(UUID userId, String currency) {
+}
+
+// wallet/dto/WalletResponse.java
+public record WalletResponse(UUID id, UUID userId, String currency, BigDecimal balance, Instant createdAt) {
+}
+
+// transaction/dto/CreateTransactionRequest.java
+public record CreateTransactionRequest(UUID walletId, BigDecimal amount, TransactionType type) {
+}
+
+// transaction/dto/TransactionResponse.java
+public record TransactionResponse(UUID id, UUID walletId, BigDecimal amount, TransactionType type, Instant createdAt) {
+}
+```
+
+### WalletService — looking up a related entity before constructing
+
+```java
+package com.payflow.payflow.wallet;
+
+import com.payflow.payflow.user.User;
+import com.payflow.payflow.user.UserRepository;
+import com.payflow.payflow.wallet.dto.CreateWalletRequest;
+import com.payflow.payflow.wallet.dto.WalletResponse;
+import org.springframework.stereotype.Service;
+
+@Service
+public class WalletService {
+
+    private final WalletRepository walletRepository;
+    private final UserRepository userRepository;
+
+    public WalletService(WalletRepository walletRepository, UserRepository userRepository) {
+        this.walletRepository = walletRepository;
+        this.userRepository = userRepository;
+    }
+
+    public WalletResponse createWallet(CreateWalletRequest request) {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Wallet wallet = new Wallet(user, request.currency());
+        Wallet savedWallet = walletRepository.save(wallet);
+
+        return new WalletResponse(
+                savedWallet.getId(),
+                savedWallet.getUser().getId(),
+                savedWallet.getCurrency(),
+                savedWallet.getBalance(),
+                savedWallet.getCreatedAt()
+        );
+    }
+}
+```
+
+**New pattern here:** a DTO only carries an id (`request.userId()`), but the entity's constructor needs the real object (`Wallet(User user, String currency)`). So the service must **look up the related entity first** — `findById(...).orElseThrow(...)` — before it can construct anything. This is the standard shape any time one entity references another.
+
+### TransactionService — the first real cross-entity business logic
+
+```java
+package com.payflow.payflow.transaction;
+
+import com.payflow.payflow.transaction.dto.CreateTransactionRequest;
+import com.payflow.payflow.transaction.dto.TransactionResponse;
+import com.payflow.payflow.wallet.Wallet;
+import com.payflow.payflow.wallet.WalletRepository;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+
+@Service
+public class TransactionService {
+
+    private final TransactionRepository transactionRepository;
+    private final WalletRepository walletRepository;
+
+    public TransactionService(TransactionRepository transactionRepository, WalletRepository walletRepository) {
+        this.transactionRepository = transactionRepository;
+        this.walletRepository = walletRepository;
+    }
+
+    public TransactionResponse createTransaction(CreateTransactionRequest request) {
+        BigDecimal newBalance;
+        Wallet wallet = walletRepository.findById(request.walletId())
+                .orElseThrow(() -> new RuntimeException("Wallet not found"));
+
+        if (request.type() == TransactionType.CREDIT) {
+            newBalance = wallet.getBalance().add(request.amount());
+        } else {
+            newBalance = wallet.getBalance().subtract(request.amount());
+        }
+
+        wallet.setBalance(newBalance);
+        walletRepository.save(wallet);
+
+        Transaction transaction = new Transaction(wallet, request.amount(), request.type());
+        Transaction savedTransaction = transactionRepository.save(transaction);
+
+        return new TransactionResponse(
+                savedTransaction.getId(),
+                savedTransaction.getWallet().getId(),
+                savedTransaction.getAmount(),
+                savedTransaction.getType(),
+                savedTransaction.getCreatedAt()
+        );
+    }
+}
+```
+
+**New concepts introduced here:**
+
+- **`BigDecimal.add()` / `.subtract()`** — `BigDecimal` is immutable, so arithmetic can't use `+`/`-`; these methods return a *new* `BigDecimal` rather than modifying the original in place. Always capture the result: `newBalance = wallet.getBalance().add(request.amount());`
+- **Comparing enums with `==`, not `.equals()`** — `request.type() == TransactionType.CREDIT` is safe and idiomatic because each enum constant is a single guaranteed unique object in memory.
+- **Two separate saves for two separate concerns** — the `Transaction`'s `amount` field always stores the actual amount moved (`request.amount()`); the `Wallet`'s `balance` field stores the running total (`newBalance`). Don't conflate the two — a very easy mistake to make since both are `BigDecimal` and both relate to money.
+
+**WalletController / TransactionController** — identical shape to `UserController`: `@RestController` + `@RequestMapping`, constructor-injected service, one `@PostMapping` method that delegates straight through. No new concepts.
+
+---
+
+## Known Gaps (honest, tracked deliberately — not yet fixed)
+
+1. **No `@Transactional` on `TransactionService.createTransaction`.** It performs two separate saves (`walletRepository.save(wallet)` then `transactionRepository.save(transaction)`). If the app crashes or the DB connection drops between them, the wallet's balance changes with no corresponding transaction record — ledger and wallet silently go out of sync. Fix: wrap the method body in `@Transactional` so both saves succeed or fail together, as one atomic unit. (Day 11–12 on the curriculum.)
+
+2. **No global exception handling.** `"User not found"`, `"Wallet not found"`, and `"Email already registered"` are all thrown as generic `RuntimeException`/`IllegalStateException`, which Spring currently converts into raw, unhelpful `500 Internal Server Error` responses. A client has no clean way to distinguish "not found" from "conflict" from "server bug." Fix: custom exception types (e.g. `ResourceNotFoundException`, `ConflictException`) plus a `@ControllerAdvice`-based global exception handler that maps them to proper status codes (`404`, `409`) with a clean error body. (Day 10 on the curriculum.)
+
+3. **No input validation.** Nothing currently stops `amount` from being negative or zero, or `currency`/`email` from being blank, at the API boundary. Bean Validation (`@NotNull`, `@Positive`, `@Email`, etc. from `jakarta.validation`) on the request DTOs, combined with `@Valid` on controller parameters, is the standard fix. (Also Day 10.)
+
+---
+
 ## Complete Entity Code
 
 ### User.java
@@ -686,31 +824,31 @@ import java.util.UUID;
 @Setter
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+   @Id
+   @GeneratedValue(strategy = GenerationType.UUID)
+   private UUID id;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+   @Column(nullable = false, unique = true)
+   private String email;
 
-    @Column(name = "full_name", nullable = false)
-    private String fullName;
+   @Column(name = "full_name", nullable = false)
+   private String fullName;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+   @Column(name = "created_at", nullable = false)
+   private Instant createdAt;
 
-    protected User() {
-    }
+   protected User() {
+   }
 
-    public User(String email, String fullName) {
-        this.email = email;
-        this.fullName = fullName;
-    }
+   public User(String email, String fullName) {
+      this.email = email;
+      this.fullName = fullName;
+   }
 
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = Instant.now();
-    }
+   @PrePersist
+   protected void onCreate() {
+      this.createdAt = Instant.now();
+   }
 }
 ```
 
@@ -734,36 +872,36 @@ import com.payflow.payflow.user.User;
 @Setter
 public class Wallet {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+   @Id
+   @GeneratedValue(strategy = GenerationType.UUID)
+   private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+   @ManyToOne(fetch = FetchType.LAZY)
+   @JoinColumn(name = "user_id", nullable = false)
+   private User user;
 
-    @Column(nullable = false)
-    private BigDecimal balance;
+   @Column(nullable = false)
+   private BigDecimal balance;
 
-    @Column(nullable = false)
-    private String currency;
+   @Column(nullable = false)
+   private String currency;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+   @Column(name = "created_at", nullable = false)
+   private Instant createdAt;
 
-    protected Wallet() {
-    }
+   protected Wallet() {
+   }
 
-    public Wallet(User user, String currency) {
-        this.user = user;
-        this.currency = currency;
-        this.balance = BigDecimal.ZERO;
-    }
+   public Wallet(User user, String currency) {
+      this.user = user;
+      this.currency = currency;
+      this.balance = BigDecimal.ZERO;
+   }
 
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = Instant.now();
-    }
+   @PrePersist
+   protected void onCreate() {
+      this.createdAt = Instant.now();
+   }
 }
 ```
 
@@ -772,8 +910,8 @@ public class Wallet {
 package com.payflow.payflow.transaction;
 
 public enum TransactionType {
-    CREDIT,
-    DEBIT
+   CREDIT,
+   DEBIT
 }
 ```
 
@@ -796,63 +934,63 @@ import java.util.UUID;
 @Setter
 public class Transaction {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+   @Id
+   @GeneratedValue(strategy = GenerationType.UUID)
+   private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "wallet_id", nullable = false)
-    private Wallet wallet;
+   @ManyToOne(fetch = FetchType.LAZY)
+   @JoinColumn(name = "wallet_id", nullable = false)
+   private Wallet wallet;
 
-    @Column(nullable = false)
-    private BigDecimal amount;
+   @Column(nullable = false)
+   private BigDecimal amount;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private TransactionType type;
+   @Enumerated(EnumType.STRING)
+   @Column(nullable = false)
+   private TransactionType type;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+   @Column(name = "created_at", nullable = false)
+   private Instant createdAt;
 
-    protected Transaction() {
-    }
+   protected Transaction() {
+   }
 
-    public Transaction(Wallet wallet, BigDecimal amount, TransactionType type) {
-        this.wallet = wallet;
-        this.amount = amount;
-        this.type = type;
-    }
+   public Transaction(Wallet wallet, BigDecimal amount, TransactionType type) {
+      this.wallet = wallet;
+      this.amount = amount;
+      this.type = type;
+   }
 
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = Instant.now();
-    }
+   @PrePersist
+   protected void onCreate() {
+      this.createdAt = Instant.now();
+   }
 }
 ```
 
 ### V1__init_schema.sql
 ```sql
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) NOT NULL UNIQUE,
-    full_name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+                      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                      email VARCHAR(255) NOT NULL UNIQUE,
+                      full_name VARCHAR(255) NOT NULL,
+                      created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE TABLE wallets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    balance NUMERIC(19, 4) NOT NULL DEFAULT 0,
-    currency VARCHAR(3) NOT NULL DEFAULT 'INR',
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id UUID NOT NULL REFERENCES users(id),
+                        balance NUMERIC(19, 4) NOT NULL DEFAULT 0,
+                        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+                        created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE TABLE transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    wallet_id UUID NOT NULL REFERENCES wallets(id),
-    amount NUMERIC(19, 4) NOT NULL,
-    type VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                             wallet_id UUID NOT NULL REFERENCES wallets(id),
+                             amount NUMERIC(19, 4) NOT NULL,
+                             type VARCHAR(20) NOT NULL,
+                             created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 ```
 
