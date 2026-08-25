@@ -1,4 +1,6 @@
 package com.payflow.payflow.user.dto;
 
-public class UserResponse {
+import java.util.UUID;
+
+public record UserResponse(UUID id , String email,String fullName) {
 }

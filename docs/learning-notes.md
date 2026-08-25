@@ -31,8 +31,8 @@ boolean isActive = true;
 ### Methods — reusable named blocks of code
 ```java
 public static int addNumbers(int a, int b) {
-    int result = a + b;
-    return result;
+   int result = a + b;
+   return result;
 }
 
 // calling it:
@@ -42,8 +42,8 @@ int total = addNumbers(5, 3); // 8
 ### Classes & Objects — blueprint vs. actual thing
 ```java
 public class Book {
-    String title;
-    int pages;
+   String title;
+   int pages;
 }
 
 Book book1 = new Book();  // creates a real object from the blueprint
@@ -55,13 +55,13 @@ Each object created with `new` has its own independent copy of the fields.
 ### Constructors — set up an object's initial state
 ```java
 public class Book {
-    String title;
-    int pages;
+   String title;
+   int pages;
 
-    Book(String title, int pages) {   // NOTE: no return type, not even void
-        this.title = title;
-        this.pages = pages;
-    }
+   Book(String title, int pages) {   // NOTE: no return type, not even void
+      this.title = title;
+      this.pages = pages;
+   }
 }
 
 Book book1 = new Book("Java Basics", 100);
@@ -73,11 +73,11 @@ Book book1 = new Book("Java Basics", 100);
 ### Conditionals
 ```java
 if (pages > 20) {
-    System.out.println("long book");
+        System.out.println("long book");
 } else if (pages > 300) {
-    System.out.println("very long book");
+        System.out.println("very long book");
 } else {
-    System.out.println("short book");
+        System.out.println("short book");
 }
 ```
 - `=` assigns a value. `==` checks equality. Mixing these up is a classic bug.
@@ -86,19 +86,19 @@ if (pages > 20) {
 ```java
 // for loop — known number of repetitions
 for (int i = 1; i <= 5; i++) {
-    System.out.println(i);
+        System.out.println(i);
 }
 
 // while loop — repeat while condition holds
 int count = 0;
 while (count < 3) {
-    System.out.println(count);
-    count++;
-}
+        System.out.println(count);
+count++;
+        }
 
 // for-each loop — visit every item in a collection
-for (Book b : books) {
-    System.out.println(b.title);
+        for (Book b : books) {
+        System.out.println(b.title);
 }
 ```
 
@@ -111,16 +111,16 @@ for (Book b : books) {
 **1. Encapsulation** — protect internal data, expose only controlled access
 ```java
 public class Book {
-    private String title;   // private = hidden from outside
-    private int pages;
+   private String title;   // private = hidden from outside
+   private int pages;
 
-    public Book(String title, int pages) {
-        if (pages < 0) throw new IllegalArgumentException("Pages cannot be negative");
-        this.title = title;
-        this.pages = pages;
-    }
+   public Book(String title, int pages) {
+      if (pages < 0) throw new IllegalArgumentException("Pages cannot be negative");
+      this.title = title;
+      this.pages = pages;
+   }
 
-    public String getTitle() { return title; }
+   public String getTitle() { return title; }
 }
 ```
 This is why `User`/`Wallet` entities use `private` fields with a `protected` no-arg constructor — controlling *how* objects are built and accessed.
@@ -131,26 +131,26 @@ This is why `User`/`Wallet` entities use `private` fields with a `protected` no-
 **3. Inheritance** — share behavior between related classes
 ```java
 public class Book {
-    protected String title;
-    protected int pages;
+   protected String title;
+   protected int pages;
 
-    public Book(String title, int pages) {
-        this.title = title;
-        this.pages = pages;
-    }
+   public Book(String title, int pages) {
+      this.title = title;
+      this.pages = pages;
+   }
 
-    public void describe() {
-        System.out.println(title + " has " + pages + " pages");
-    }
+   public void describe() {
+      System.out.println(title + " has " + pages + " pages");
+   }
 }
 
 public class Ebook extends Book {
-    private double fileSizeMb;
+   private double fileSizeMb;
 
-    public Ebook(String title, int pages, double fileSizeMb) {
-        super(title, pages);           // calls Book's constructor
-        this.fileSizeMb = fileSizeMb;
-    }
+   public Ebook(String title, int pages, double fileSizeMb) {
+      super(title, pages);           // calls Book's constructor
+      this.fileSizeMb = fileSizeMb;
+   }
 }
 ```
 - `extends` — "is a kind of"
@@ -160,10 +160,10 @@ public class Ebook extends Book {
 **4. Polymorphism** — one interface, many behaviors
 ```java
 public class Ebook extends Book {
-    @Override
-    public void describe() {
-        System.out.println(title + " is an ebook, " + fileSizeMb + "MB");
-    }
+   @Override
+   public void describe() {
+      System.out.println(title + " is an ebook, " + fileSizeMb + "MB");
+   }
 }
 
 Book b = new Ebook("Spring Guide", 200, 15.5);
@@ -174,14 +174,14 @@ The **actual object type** decides which method runs, not the declared variable 
 ### Interfaces — a contract with no implementation
 ```java
 public interface Payable {
-    void pay(double amount);
+   void pay(double amount);
 }
 
 public class CreditCard implements Payable {
-    @Override
-    public void pay(double amount) {
-        System.out.println("Paid " + amount);
-    }
+   @Override
+   public void pay(double amount) {
+      System.out.println("Paid " + amount);
+   }
 }
 ```
 Spring Data JPA repositories are interfaces — you declare *what* you want, Spring generates the real implementation at runtime.
@@ -210,10 +210,10 @@ books.add(book1);
 books.add(book2);
 
 for (Book b : books) {
-    System.out.println(b.title);
+        System.out.println(b.title);
 }
 
-books.size();       // count
+        books.size();       // count
 books.get(0);        // access by index
 ```
 
@@ -250,9 +250,9 @@ Syntax: `(inputs) -> expression`. Parentheses optional with exactly one input.
 ### Stream pipeline
 ```java
 List<String> longBookTitles = books.stream()
-    .filter(book -> book.pages > 100)   // keep matching items
-    .map(book -> book.title)             // transform each item
-    .collect(Collectors.toList());       // gather into a list
+        .filter(book -> book.pages > 100)   // keep matching items
+        .map(book -> book.title)             // transform each item
+        .collect(Collectors.toList());       // gather into a list
 ```
 
 - `.stream()` — turns a collection into a pipeline
@@ -263,8 +263,8 @@ List<String> longBookTitles = books.stream()
 
 ```java
 int totalPages = books.stream()
-    .map(book -> book.pages)
-    .reduce(0, (sum, pages) -> sum + pages);
+        .map(book -> book.pages)
+        .reduce(0, (sum, pages) -> sum + pages);
 ```
 
 ---
@@ -275,8 +275,8 @@ A fixed, named set of allowed values — the compiler enforces that nothing else
 
 ```java
 public enum TransactionType {
-    CREDIT,
-    DEBIT
+   CREDIT,
+   DEBIT
 }
 ```
 
@@ -303,10 +303,10 @@ Any non-primitive type can be `null`. Always relevant when a field is an object 
 ### Exceptions — try/catch/throw
 ```java
 try {
-    int result = 10 / 0;
+int result = 10 / 0;
 } catch (ArithmeticException e) {
-    System.out.println("Error: " + e.getMessage());
-}
+        System.out.println("Error: " + e.getMessage());
+        }
 ```
 - `try { }` — code that might fail
 - `catch (Type e) { }` — runs only if that specific failure happens
@@ -372,6 +372,298 @@ try {
 8. **Unidirectional relationships only, for now** — `Wallet` knows about `User`, but `User` doesn't have a `List<Wallet>` back-reference. Avoids bidirectional sync bugs and serialization issues. Add the reverse side later only if there's a concrete need.
 
 9. **`ddl-auto=validate`, never `update` or `create`** — Hibernate checks that entities match the real schema and fails loudly on mismatch, but never auto-modifies the schema itself. Flyway alone owns schema changes.
+
+---
+
+## Repositories
+
+### What a Repository is
+
+The layer responsible for talking to the database — saving, finding, deleting entities. In Spring Data JPA, you write an `interface` (no implementation code at all), and Spring generates a real, working implementation automatically at startup using a **proxy** (a hidden class Spring creates behind the scenes that implements your interface).
+
+### The base interface: `JpaRepository<EntityType, IdType>`
+
+```java
+public interface UserRepository extends JpaRepository<User, UUID> {
+}
+```
+
+- `public interface UserRepository` — an interface, not a class: you're declaring *what* you want, not *how* it works
+- `extends JpaRepository<User, UUID>` — inherits a full set of ready-made methods, specialized for the `User` entity, whose primary key type is `UUID`
+
+This single empty interface already gives you, for free, with zero code written:
+
+```java
+userRepository.save(user);          // insert or update
+userRepository.findById(id);        // returns Optional<User>
+userRepository.findAll();           // returns List<User>
+userRepository.deleteById(id);
+userRepository.count();
+userRepository.existsById(id);
+```
+
+### Where the file goes
+
+Same package as the entity it belongs to (feature-based structure) — e.g. `UserRepository` lives in `com.payflow.payflow.user`, right next to `User.java`.
+
+### Derived query methods — Spring writes the SQL from the method name
+
+You can declare your own methods, and Spring Data JPA parses the method *name itself* to generate the correct query — no `@Query` or SQL required for simple cases.
+
+```java
+public interface UserRepository extends JpaRepository<User, UUID> {
+    Optional<User> findByEmail(String email);
+}
+```
+
+Spring reads `findByEmail` as: "find one `User` where the `email` column equals the given argument," and builds the SQL automatically (`SELECT * FROM users WHERE email = ?`).
+
+**Return type matters:**
+- A lookup that might not find anything → wrap in `Optional<EntityType>` (e.g. `findByEmail`, since a given email might not exist)
+- A lookup that returns many rows → `List<EntityType>` (e.g. "find all wallets for a user" — could be zero, one, or many results)
+
+### Naming pattern reference
+
+The method name is parsed piece by piece. General shape:
+
+```
+find/get/count/exists + By + FieldName + (Condition keyword, optional) + (And/Or + FieldName...)
+```
+
+| Method name | Meaning | Generated SQL (conceptually) |
+|---|---|---|
+| `findByEmail(String email)` | one match by exact field value | `WHERE email = ?` |
+| `findByUser(User user)` | match by a relationship field | `WHERE user_id = ?` |
+| `findAllByWallet(Wallet wallet)` | many matches by a relationship field | `WHERE wallet_id = ?` |
+| `findByEmailAndFullName(String email, String name)` | multiple conditions, AND | `WHERE email = ? AND full_name = ?` |
+| `findByPagesGreaterThan(int pages)` | comparison keyword | `WHERE pages > ?` |
+| `existsByEmail(String email)` | returns boolean, no full row fetch | `SELECT EXISTS(... WHERE email = ?)` |
+| `countByType(TransactionType type)` | returns a count | `SELECT COUNT(*) ... WHERE type = ?` |
+
+**Key rule:** the field name after `By` must match an actual field on the entity (or a field on a related entity, using the relationship field's name — e.g. `findByUser`, not `findByUserId`, since the entity's field is called `user`, a `User` object, not a raw ID).
+
+### Applied to PayFlow — relationship-based lookups
+
+```java
+// WalletRepository — find wallets belonging to a specific user
+public interface WalletRepository extends JpaRepository<Wallet, UUID> {
+    List<Wallet> findByUser(User user);
+}
+
+// TransactionRepository — find transaction history for a specific wallet
+public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+    List<Transaction> findByWallet(Wallet wallet);
+}
+```
+
+Why `findByUser(User user)` and not `findByUserId(UUID userId)`: the `Wallet` entity's field is literally named `user` and is of type `User` (a `@ManyToOne` relationship) — Spring Data JPA can navigate relationship fields directly, matching against the foreign key column under the hood without you writing the join yourself.
+
+### When derived method names aren't enough: `@Query`
+
+For anything more complex than simple field matching (joins across multiple relationships, aggregations, custom sorting logic), you can write JPQL (JPA's own query language, similar to SQL but operates on entity/field names instead of table/column names) directly:
+
+```java
+@Query("SELECT t FROM Transaction t WHERE t.wallet.id = :walletId ORDER BY t.createdAt DESC")
+List<Transaction> findRecentTransactionsByWalletId(@Param("walletId") UUID walletId);
+```
+
+Not needed yet for PayFlow's current scope — worth knowing this escape hatch exists once naming conventions get too complex to express cleanly.
+
+### Full repository files (PayFlow, current state)
+
+```java
+package com.payflow.payflow.user;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+import java.util.UUID;
+
+public interface UserRepository extends JpaRepository<User, UUID> {
+    Optional<User> findByEmail(String email);
+}
+```
+
+```java
+package com.payflow.payflow.wallet;
+
+import com.payflow.payflow.user.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface WalletRepository extends JpaRepository<Wallet, UUID> {
+    List<Wallet> findByUser(User user);
+}
+```
+
+```java
+package com.payflow.payflow.transaction;
+
+import com.payflow.payflow.wallet.Wallet;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+    List<Transaction> findByWallet(Wallet wallet);
+}
+```
+
+---
+
+## DTOs, Service, and Controller — the full request flow
+
+### Why DTOs exist (never return entities directly from a controller)
+
+Returning a raw `@Entity` from a controller leaks your database structure to the outside world (e.g. a future `passwordHash` field would silently appear in API responses), and conflates "what a client sends you" with "what you store" — two genuinely different shapes as a project grows.
+
+**Records are the natural fit for DTOs** — simple, immutable containers, no setters, no JPA lifecycle concerns:
+
+```java
+// What the client sends in:
+package com.payflow.payflow.user.dto;
+
+public record CreateUserRequest(String email, String fullName) {
+}
+```
+
+```java
+// What we send back out:
+package com.payflow.payflow.user.dto;
+
+import java.util.UUID;
+
+public record UserResponse(UUID id, String email, String fullName) {
+}
+```
+
+Record fields are accessed like methods, not fields: `request.email()`, not `request.email`.
+
+### The Controller → Service → Repository flow
+
+```
+HTTP POST /api/users  (JSON body)
+        ↓
+UserController.createUser()   ← translates HTTP ↔ Java
+        ↓
+UserService.createUser()      ← business rules (duplicate email check)
+        ↓
+UserRepository.save()         ← actual database interaction
+        ↓
+Postgres
+```
+
+Each layer only knows about the layer directly below it. This is what makes each piece independently testable and replaceable.
+
+### `@Service` — where business logic lives
+
+```java
+package com.payflow.payflow.user;
+
+import com.payflow.payflow.user.dto.CreateUserRequest;
+import com.payflow.payflow.user.dto.UserResponse;
+import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+
+@Service
+public class UserService {
+
+    private final UserRepository userRepository;
+
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    public UserResponse createUser(CreateUserRequest request) {
+        Optional<User> existingUser = userRepository.findByEmail(request.email());
+        if (existingUser.isPresent()) {
+            throw new IllegalStateException("Email already registered");
+        }
+
+        User user = new User(request.email(), request.fullName());
+        User savedUser = userRepository.save(user);
+
+        return new UserResponse(savedUser.getId(), savedUser.getEmail(), savedUser.getFullName());
+    }
+}
+```
+
+- `@Service` — tells Spring to manage this class as a bean, same underlying mechanism as `@RestController`, `@Component`
+- **Constructor injection** — the class declares what it needs (`UserRepository`) as a constructor parameter; Spring supplies the real implementation automatically. Preferred over field-level `@Autowired` for real application code (field injection remains normal in test classes).
+- Business rules (like "no duplicate emails") live here, never in the controller — so the same logic is reusable from any entry point (HTTP, a background job, a CLI tool) without duplication.
+
+### `@RestController` — the HTTP-facing layer
+
+```java
+package com.payflow.payflow.user;
+
+import com.payflow.payflow.user.dto.CreateUserRequest;
+import com.payflow.payflow.user.dto.UserResponse;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @PostMapping
+    public UserResponse createUser(@RequestBody CreateUserRequest request) {
+        return userService.createUser(request);
+    }
+}
+```
+
+- `@RequestMapping("/api/users")` — class-level shared URL prefix for every endpoint in this controller
+- `@PostMapping` — maps HTTP POST requests (creating something new, per REST conventions)
+- `@RequestBody` — tells Spring to auto-convert the incoming JSON body into a `CreateUserRequest` object (via Jackson, bundled with Spring Web)
+- The controller's only job: translate HTTP ↔ Java, and delegate everything else to the service — no business logic here
+
+### REST conventions reference
+
+| HTTP Method | Meaning | Request body? |
+|---|---|---|
+| `GET` | Retrieve, never changes anything | No |
+| `POST` | Create something new | Yes |
+| `PUT` | Replace an existing thing entirely | Yes |
+| `PATCH` | Partially update | Yes |
+| `DELETE` | Remove something | Usually no |
+
+| Status Code | Meaning |
+|---|---|
+| `200 OK` | Success, returning data |
+| `201 Created` | Success, a new resource now exists |
+| `204 No Content` | Success, nothing to return |
+| `400 Bad Request` | Malformed/invalid request |
+| `404 Not Found` | Resource doesn't exist |
+| `409 Conflict` | Conflicts with current state (e.g. duplicate email) |
+| `500 Internal Server Error` | Unhandled server-side bug |
+
+*Note: the current `createUser` endpoint returns a plain `UserResponse` with Spring's default `200 OK`. A refinement for later: wrap it in `ResponseEntity<UserResponse>` and explicitly return `201 Created`, since this endpoint creates a new resource.*
+
+### Testing the endpoint manually
+
+```bash
+curl -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"email": "mohit@payflow.com", "fullName": "Mohit Kumar"}'
+```
+
+### Unit test vs. integration test
+
+- **Unit test** — tests one piece of code in complete isolation, no Spring/database involved (e.g. testing `UserService` with a *mocked* `UserRepository`, using Mockito).
+- **Integration test** — tests multiple real pieces working together (e.g. `UserRepositoryTest`, which uses `@DataJpaTest` and a real Postgres connection). The tell: if a test needs `@Autowired` or a running database, it's an integration test.
 
 ---
 
