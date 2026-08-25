@@ -145,9 +145,11 @@ Managed by Flyway. Migration files live in `src/main/resources/db/migration/`, n
 - [x] JPA entities: `User`, `Wallet`, `Transaction`
 - [x] Repositories with derived query methods
 - [x] Repository-level tests
-- [ ] Service layer (business logic: credit, debit, transfer)
-- [ ] DTOs and REST controllers
-- [ ] Global exception handling
+- [x] DTOs (`CreateUserRequest`, `UserResponse`)
+- [x] Service layer for User (`UserService.createUser`)
+- [x] REST controller for User (`POST /api/users`), tested end-to-end via curl
+- [ ] Service + Controller for Wallet and Transaction (credit, debit, transfer)
+- [ ] Global exception handling (currently `IllegalStateException` returns a raw 500 — needs `@ControllerAdvice`)
 - [ ] Bean validation
 - [ ] `@Transactional` boundaries, optimistic locking, idempotency keys
 - [ ] Spring Security + JWT authentication
