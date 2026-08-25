@@ -150,9 +150,9 @@ Managed by Flyway. Migration files live in `src/main/resources/db/migration/`, n
 - [x] REST controller for User (`POST /api/users`), tested end-to-end via curl
 - [x] Service + Controller for Wallet (`POST /api/wallets`) and Transaction (`POST /api/transactions`)
 - [x] End-to-end verified: creating a CREDIT transaction correctly updates the wallet's balance in Postgres
+- [x] Global exception handling (`@ControllerAdvice`) — `404` for not found, `409` for conflicts, `400` with field-level errors for validation failures
+- [x] Input validation (Bean Validation: `@NotBlank`, `@NotNull`, `@Positive`, `@Email` on request DTOs, enforced via `@Valid`)
 - [ ] `@Transactional` on `TransactionService.createTransaction` — currently two separate saves (wallet, transaction) are NOT atomic; a crash between them desyncs the ledger
-- [ ] Global exception handling (`@ControllerAdvice`) — "not found" / "already exists" errors currently surface as raw `500`s instead of `404`/`409`
-- [ ] Input validation (Bean Validation on request DTOs — reject negative amounts, blank emails, etc.)
 - [ ] Bean validation
 - [ ] `@Transactional` boundaries, optimistic locking, idempotency keys
 - [ ] Spring Security + JWT authentication
