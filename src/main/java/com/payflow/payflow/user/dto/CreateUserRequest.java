@@ -1,4 +1,4 @@
 package com.payflow.payflow.user.dto;
 
-public class CreateUserRequest {
+public record CreateUserRequest(String email, String fullName)  {
 }
