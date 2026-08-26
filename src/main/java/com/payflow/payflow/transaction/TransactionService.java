@@ -6,6 +6,7 @@ import com.payflow.payflow.transaction.dto.TransactionResponse;
 import com.payflow.payflow.wallet.Wallet;
 import com.payflow.payflow.wallet.WalletRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
@@ -19,6 +20,7 @@ public class TransactionService {
         this.walletRepository = walletRepository;
     }
 
+    @Transactional
     public TransactionResponse createTransaction(CreateTransactionRequest request) {
         BigDecimal newBalance;
         Wallet wallet = walletRepository.findById(request.walletId()).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));

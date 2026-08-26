@@ -917,11 +917,94 @@ public UserResponse createUser(@Valid @RequestBody CreateUserRequest request) {
 
 ---
 
-## Known Gaps (updated)
+## `@Transactional` — Atomicity for Multi-Step Database Operations
 
-1. ~~No global exception handling~~ → ✅ **fixed** — `ResourceNotFoundException` (404), `ConflictException` (409), `MethodArgumentNotValidException` (400) all handled centrally via `@ControllerAdvice`
-2. ~~No input validation~~ → ✅ **fixed** — Bean Validation (`@NotBlank`, `@NotNull`, `@Positive`, `@Email`) on all `Create*Request` DTOs, enforced via `@Valid`
-3. **No `@Transactional` on `TransactionService.createTransaction`** — still open. It performs two separate saves (`walletRepository.save(wallet)` then `transactionRepository.save(transaction)`) that are not atomic; a crash between them desyncs the ledger. Next up: Day 11–12.
+### The problem
+
+`TransactionService.createTransaction` performs two separate database writes: `walletRepository.save(wallet)` and `transactionRepository.save(transaction)`. Without protection, if anything fails between them, one succeeds and the other doesn't — the wallet's balance changes with no matching transaction record to explain it. **This was reproduced for real**: testing without `@Transactional` produced a wallet balance of `700` backed by only one `500` transaction row — a genuinely corrupted ledger, not just a theoretical risk.
+
+### The concept: a database transaction (ACID)
+
+A group of database operations that either **all** succeed, or are **all undone together** (rolled back) — no partial state is ever left behind.
+
+- **Atomicity** — all-or-nothing (the guarantee that fixes this bug)
+- **Consistency** — the database always moves between valid states
+- **Isolation** — concurrent transactions don't interfere with each other
+- **Durability** — committed changes survive a crash
+
+### The fix
+
+```java
+import org.springframework.transaction.annotation.Transactional;
+
+@Transactional
+public TransactionResponse createTransaction(CreateTransactionRequest request) {
+    // unchanged — both saves now succeed or roll back together
+}
+```
+
+One annotation wraps the entire method in a real database transaction. If any exception is thrown anywhere inside — including a mid-method crash — **every write already performed in this method is automatically rolled back**, including saves that already ran.
+
+**Import carefully:** use `org.springframework.transaction.annotation.Transactional` (Spring's version), not the `jakarta.transaction` one.
+
+### Verified twice, in a real database
+
+1. **Simulated crash test** — added a deliberate `throw new RuntimeException(...)` right after `walletRepository.save(wallet)`. With `@Transactional` present, the wallet's balance remained completely unchanged after the crash — proving the already-executed save was rolled back.
+2. **Accidental real-world reproduction** — a request was sent while `@Transactional` was temporarily missing, producing a wallet balance of `700` with only a `500` transaction row in the database — a genuine, visible case of ledger corruption, immediately fixed once `@Transactional` was restored.
+
+---
+
+## Environment Profiles — dev vs. prod Configuration
+
+### The problem
+
+A single `application.properties` hardcodes local database credentials — fine for development, wrong for production, where credentials differ and should never be committed to source control.
+
+### The fix: Spring Profiles — one file per environment
+
+**`application.properties`** (shared/default config):
+```properties
+spring.application.name=payflow
+spring.profiles.active=dev
+```
+
+**`application-dev.properties`**:
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/payflow
+spring.datasource.username=payflow
+spring.datasource.password=payflow_dev_pw
+spring.jpa.hibernate.ddl-auto=validate
+```
+
+**`application-prod.properties`**:
+```properties
+spring.datasource.url=${DATABASE_URL}
+spring.datasource.username=${DATABASE_USERNAME}
+spring.datasource.password=${DATABASE_PASSWORD}
+spring.jpa.hibernate.ddl-auto=validate
+```
+
+`${DATABASE_URL}` reads from an **environment variable** on the machine running the app, rather than a hardcoded value — real credentials never live in a file that gets committed to Git.
+
+### Switching which profile is active
+
+| Method | How |
+|---|---|
+| Environment variable (real production way) | `export SPRING_PROFILES_ACTIVE=prod` before starting the app — any Spring property can be set this way: uppercase, dots → underscores |
+| Command-line argument | `./gradlew bootRun --args='--spring.profiles.active=prod'` |
+| IntelliJ Run Configuration | Add `SPRING_PROFILES_ACTIVE=prod` as an environment variable in the run config |
+
+Environment variables **override** whatever's written in the properties files — this is why real deployments never require editing code or config, just setting variables on the target server.
+
+---
+
+## Known Gaps — ALL RESOLVED
+
+1. ~~No global exception handling~~ → ✅ fixed (`@ControllerAdvice`, custom exceptions)
+2. ~~No input validation~~ → ✅ fixed (Bean Validation + `@Valid`)
+3. ~~No `@Transactional`~~ → ✅ fixed and verified twice against a real database
+
+Next honest gaps for the road ahead (not yet addressed): concurrency/optimistic locking on simultaneous transactions against the same wallet, idempotency keys for safe request retries, authentication/authorization (Spring Security + JWT), automated test coverage beyond the one repository test, API documentation (OpenAPI/Swagger), Testcontainers for integration tests, Dockerization, and CI/CD.
 
 ---
 

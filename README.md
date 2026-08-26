@@ -152,7 +152,16 @@ Managed by Flyway. Migration files live in `src/main/resources/db/migration/`, n
 - [x] End-to-end verified: creating a CREDIT transaction correctly updates the wallet's balance in Postgres
 - [x] Global exception handling (`@ControllerAdvice`) — `404` for not found, `409` for conflicts, `400` with field-level errors for validation failures
 - [x] Input validation (Bean Validation: `@NotBlank`, `@NotNull`, `@Positive`, `@Email` on request DTOs, enforced via `@Valid`)
-- [ ] `@Transactional` on `TransactionService.createTransaction` — currently two separate saves (wallet, transaction) are NOT atomic; a crash between them desyncs the ledger
+- [x] `@Transactional` on `TransactionService.createTransaction` — verified with a real rollback test AND an accidental real-world reproduction of ledger corruption without it
+- [x] Environment profiles (`dev`/`prod`) — `application-dev.properties`, `application-prod.properties`, activated via `spring.profiles.active` or `SPRING_PROFILES_ACTIVE`
+- [ ] Concurrency / optimistic locking for simultaneous transactions on the same wallet
+- [ ] Idempotency keys for safe request retries
+- [ ] Spring Security + JWT authentication
+- [ ] Broader automated test coverage (currently one repository integration test)
+- [ ] OpenAPI/Swagger documentation
+- [ ] Testcontainers for integration tests
+- [ ] Dockerization
+- [ ] CI/CD pipeline
 - [ ] Bean validation
 - [ ] `@Transactional` boundaries, optimistic locking, idempotency keys
 - [ ] Spring Security + JWT authentication
