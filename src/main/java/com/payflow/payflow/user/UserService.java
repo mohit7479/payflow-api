@@ -1,6 +1,7 @@
 //(business logic)
 package com.payflow.payflow.user;
 
+import com.payflow.payflow.common.exception.ConflictException;
 import com.payflow.payflow.user.dto.CreateUserRequest;
 import com.payflow.payflow.user.dto.UserResponse;
 import org.springframework.stereotype.Service;
@@ -19,7 +20,7 @@ public class UserService {
     public UserResponse createUser(CreateUserRequest request) {
         Optional<User> existingUser = userRepository.findByEmail(request.email());
         if (existingUser.isPresent()) {
-            throw new IllegalStateException("Email already registered");
+            throw new ConflictException("Email already registered");
         }
         User user = new User(request.email(), request.fullName());
         User savedUser = userRepository.save(user);

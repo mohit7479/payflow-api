@@ -1,5 +1,6 @@
 package com.payflow.payflow.transaction;
 
+import com.payflow.payflow.common.exception.ResourceNotFoundException;
 import com.payflow.payflow.transaction.dto.CreateTransactionRequest;
 import com.payflow.payflow.transaction.dto.TransactionResponse;
 import com.payflow.payflow.wallet.Wallet;
@@ -20,7 +21,7 @@ public class TransactionService {
 
     public TransactionResponse createTransaction(CreateTransactionRequest request) {
         BigDecimal newBalance;
-        Wallet wallet = walletRepository.findById(request.walletId()).orElseThrow(() -> new RuntimeException("Wallet not found"));
+        Wallet wallet = walletRepository.findById(request.walletId()).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
         if (request.type() == TransactionType.CREDIT) {
             newBalance = wallet.getBalance().add(request.amount());
         } else {

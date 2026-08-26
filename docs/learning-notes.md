@@ -795,13 +795,133 @@ public class TransactionService {
 
 ---
 
-## Known Gaps (honest, tracked deliberately — not yet fixed)
+## Day 10 — Global Exception Handling & Validation
 
-1. **No `@Transactional` on `TransactionService.createTransaction`.** It performs two separate saves (`walletRepository.save(wallet)` then `transactionRepository.save(transaction)`). If the app crashes or the DB connection drops between them, the wallet's balance changes with no corresponding transaction record — ledger and wallet silently go out of sync. Fix: wrap the method body in `@Transactional` so both saves succeed or fail together, as one atomic unit. (Day 11–12 on the curriculum.)
+### Custom exceptions — extending `RuntimeException`
 
-2. **No global exception handling.** `"User not found"`, `"Wallet not found"`, and `"Email already registered"` are all thrown as generic `RuntimeException`/`IllegalStateException`, which Spring currently converts into raw, unhelpful `500 Internal Server Error` responses. A client has no clean way to distinguish "not found" from "conflict" from "server bug." Fix: custom exception types (e.g. `ResourceNotFoundException`, `ConflictException`) plus a `@ControllerAdvice`-based global exception handler that maps them to proper status codes (`404`, `409`) with a clean error body. (Day 10 on the curriculum.)
+```java
+package com.payflow.payflow.common.exception;
 
-3. **No input validation.** Nothing currently stops `amount` from being negative or zero, or `currency`/`email` from being blank, at the API boundary. Bean Validation (`@NotNull`, `@Positive`, `@Email`, etc. from `jakarta.validation`) on the request DTOs, combined with `@Valid` on controller parameters, is the standard fix. (Also Day 10.)
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+```
+
+```java
+package com.payflow.payflow.common.exception;
+
+public class ConflictException extends RuntimeException {
+    public ConflictException(String message) {
+        super(message);
+    }
+}
+```
+
+`extends RuntimeException` — same mechanism as `Ebook extends Book`; `super(message)` passes the message up to the parent constructor, identical to `super(title, pages)` in the `Ebook` example. Services now throw these specific types instead of generic `IllegalStateException`/`RuntimeException`, so the meaning is explicit in the code itself.
+
+### `@ControllerAdvice` + `@ExceptionHandler` — centralized error handling
+
+```java
+package com.payflow.payflow.common.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<String> handleNotFound(ResourceNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<String> handleConflict(ConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            errors.put(error.getField(), error.getDefaultMessage());
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
+    }
+}
+```
+
+- **`@ControllerAdvice`** — Spring scans every controller in the app; if any throws an exception, this class is checked first for a matching handler, instead of falling through to a generic `500`
+- **`@ExceptionHandler(SomeException.class)`** — one method per exception type this class knows how to handle
+- **`MethodArgumentNotValidException`** — Spring's own built-in exception, thrown automatically when `@Valid` validation fails. Unlike the custom exceptions (single message), it can carry *multiple* field errors at once, so `Map<String, String>` (field name → message) is the natural fit, built by looping over `ex.getBindingResult().getFieldErrors()` with a for-each loop
+
+**Result:** `409` for duplicate email, `404` for missing user/wallet, `400` with a clean field-level error map for bad input — no raw stack traces or generic 500s reach the client for any of these expected situations.
+
+### Bean Validation — rejecting bad input at the API boundary
+
+Annotations go directly on record parameters:
+
+```java
+public record CreateUserRequest(
+    @NotBlank @Email String email,
+    @NotBlank String fullName
+) {
+}
+
+public record CreateWalletRequest(
+    @NotNull UUID userId,
+    @NotBlank String currency
+) {
+}
+
+public record CreateTransactionRequest(
+    @NotNull UUID walletId,
+    @NotNull @Positive BigDecimal amount,
+    TransactionType type
+) {
+}
+```
+
+| Annotation | Applies to | Checks |
+|---|---|---|
+| `@NotBlank` | `String` | Not null and not just whitespace |
+| `@NotNull` | Any non-`String` type (`UUID`, `BigDecimal`, etc.) | Not null |
+| `@Positive` | Numbers | Greater than zero |
+| `@Email` | `String` | Valid email format |
+
+**Why `type` (a `TransactionType` enum) needs no annotation:** if a client sends an invalid value like `"type": "BANANA"`, Jackson fails to convert the JSON into the enum *during parsing itself*, before validation ever runs — the enum's fixed set of values already guarantees correctness at the type level.
+
+**Validation must be triggered explicitly with `@Valid`** on the controller parameter — annotations on the DTO alone do nothing by themselves:
+
+```java
+@PostMapping
+public UserResponse createUser(@Valid @RequestBody CreateUserRequest request) {
+    return userService.createUser(request);
+}
+```
+
+### Why validation belongs on the DTO, not the entity
+
+- Validating at the DTO/controller boundary rejects bad requests **immediately**, before any service logic or database calls run — entity-level validation (via Hibernate) only fires right before an `INSERT`/`UPDATE`, after everything else has already run.
+- The DTO represents "what a valid API request looks like"; the entity represents "what a valid database row looks like" — these are different contracts, even when they look similar today. Same underlying principle as never returning raw entities from controllers.
+- The entity's `@Column(nullable = false)` remains as a last-resort database-level safety net — but the primary, fast-failing checks belong on the DTO.
+
+---
+
+## Known Gaps (updated)
+
+1. ~~No global exception handling~~ → ✅ **fixed** — `ResourceNotFoundException` (404), `ConflictException` (409), `MethodArgumentNotValidException` (400) all handled centrally via `@ControllerAdvice`
+2. ~~No input validation~~ → ✅ **fixed** — Bean Validation (`@NotBlank`, `@NotNull`, `@Positive`, `@Email`) on all `Create*Request` DTOs, enforced via `@Valid`
+3. **No `@Transactional` on `TransactionService.createTransaction`** — still open. It performs two separate saves (`walletRepository.save(wallet)` then `transactionRepository.save(transaction)`) that are not atomic; a crash between them desyncs the ledger. Next up: Day 11–12.
 
 ---
 
@@ -824,31 +944,31 @@ import java.util.UUID;
 @Setter
 public class User {
 
-   @Id
-   @GeneratedValue(strategy = GenerationType.UUID)
-   private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-   @Column(nullable = false, unique = true)
-   private String email;
+    @Column(nullable = false, unique = true)
+    private String email;
 
-   @Column(name = "full_name", nullable = false)
-   private String fullName;
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
 
-   @Column(name = "created_at", nullable = false)
-   private Instant createdAt;
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
-   protected User() {
-   }
+    protected User() {
+    }
 
-   public User(String email, String fullName) {
-      this.email = email;
-      this.fullName = fullName;
-   }
+    public User(String email, String fullName) {
+        this.email = email;
+        this.fullName = fullName;
+    }
 
-   @PrePersist
-   protected void onCreate() {
-      this.createdAt = Instant.now();
-   }
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+    }
 }
 ```
 
@@ -872,36 +992,36 @@ import com.payflow.payflow.user.User;
 @Setter
 public class Wallet {
 
-   @Id
-   @GeneratedValue(strategy = GenerationType.UUID)
-   private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-   @ManyToOne(fetch = FetchType.LAZY)
-   @JoinColumn(name = "user_id", nullable = false)
-   private User user;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-   @Column(nullable = false)
-   private BigDecimal balance;
+    @Column(nullable = false)
+    private BigDecimal balance;
 
-   @Column(nullable = false)
-   private String currency;
+    @Column(nullable = false)
+    private String currency;
 
-   @Column(name = "created_at", nullable = false)
-   private Instant createdAt;
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
-   protected Wallet() {
-   }
+    protected Wallet() {
+    }
 
-   public Wallet(User user, String currency) {
-      this.user = user;
-      this.currency = currency;
-      this.balance = BigDecimal.ZERO;
-   }
+    public Wallet(User user, String currency) {
+        this.user = user;
+        this.currency = currency;
+        this.balance = BigDecimal.ZERO;
+    }
 
-   @PrePersist
-   protected void onCreate() {
-      this.createdAt = Instant.now();
-   }
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+    }
 }
 ```
 
@@ -910,8 +1030,8 @@ public class Wallet {
 package com.payflow.payflow.transaction;
 
 public enum TransactionType {
-   CREDIT,
-   DEBIT
+    CREDIT,
+    DEBIT
 }
 ```
 
@@ -934,37 +1054,37 @@ import java.util.UUID;
 @Setter
 public class Transaction {
 
-   @Id
-   @GeneratedValue(strategy = GenerationType.UUID)
-   private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-   @ManyToOne(fetch = FetchType.LAZY)
-   @JoinColumn(name = "wallet_id", nullable = false)
-   private Wallet wallet;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "wallet_id", nullable = false)
+    private Wallet wallet;
 
-   @Column(nullable = false)
-   private BigDecimal amount;
+    @Column(nullable = false)
+    private BigDecimal amount;
 
-   @Enumerated(EnumType.STRING)
-   @Column(nullable = false)
-   private TransactionType type;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TransactionType type;
 
-   @Column(name = "created_at", nullable = false)
-   private Instant createdAt;
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
-   protected Transaction() {
-   }
+    protected Transaction() {
+    }
 
-   public Transaction(Wallet wallet, BigDecimal amount, TransactionType type) {
-      this.wallet = wallet;
-      this.amount = amount;
-      this.type = type;
-   }
+    public Transaction(Wallet wallet, BigDecimal amount, TransactionType type) {
+        this.wallet = wallet;
+        this.amount = amount;
+        this.type = type;
+    }
 
-   @PrePersist
-   protected void onCreate() {
-      this.createdAt = Instant.now();
-   }
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+    }
 }
 ```
 
