@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 @Service
 public class TransactionService {
@@ -20,9 +21,15 @@ public class TransactionService {
         this.walletRepository = walletRepository;
     }
 
+
     @Transactional
     public TransactionResponse createTransaction(CreateTransactionRequest request) {
         BigDecimal newBalance;
+        Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(request.idempotencyKey());
+        if (existing.isPresent()) {
+            Transaction alreadyProcessed = existing.get();
+            return new TransactionResponse(alreadyProcessed.getId(), alreadyProcessed.getWallet().getId(), alreadyProcessed.getAmount(), alreadyProcessed.getType(), alreadyProcessed.getCreatedAt());
+        }
         Wallet wallet = walletRepository.findById(request.walletId()).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
         if (request.type() == TransactionType.CREDIT) {
             newBalance = wallet.getBalance().add(request.amount());
@@ -31,7 +38,7 @@ public class TransactionService {
         }
         wallet.setBalance(newBalance);
         walletRepository.save(wallet);
-        Transaction transaction = new Transaction(wallet, request.amount(), request.type());
+        Transaction transaction = new Transaction(wallet, request.amount(), request.type(), request.idempotencyKey());
         Transaction savedTransaction = transactionRepository.save(transaction);
 
         return new TransactionResponse(savedTransaction.getId(), savedTransaction.getWallet().getId(), savedTransaction.getAmount(), savedTransaction.getType(), savedTransaction.getCreatedAt());

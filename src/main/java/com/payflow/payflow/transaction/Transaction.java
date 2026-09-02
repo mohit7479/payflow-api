@@ -23,6 +23,9 @@ public class Transaction {
     @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
 
+    @Column(name = "idempotency_key", nullable = false, unique = true)
+    private String idempotencyKey;
+
     @Column(nullable = false)
     private BigDecimal amount;
 
@@ -36,10 +39,11 @@ public class Transaction {
     protected Transaction() {
     }
 
-    public Transaction(Wallet wallet, BigDecimal amount, TransactionType type) {
+    public Transaction(Wallet wallet, BigDecimal amount, TransactionType type, String idempotencyKey) {
         this.wallet = wallet;
         this.amount = amount;
         this.type = type;
+        this.idempotencyKey=idempotencyKey;
     }
 
     @PrePersist

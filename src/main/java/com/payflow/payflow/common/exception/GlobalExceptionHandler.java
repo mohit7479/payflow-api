@@ -1,5 +1,7 @@
 package com.payflow.payflow.common.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -30,5 +32,15 @@ public class GlobalExceptionHandler {
             errors.put(error.getField(),error.getDefaultMessage());
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<String>handleLockFailure(OptimisticLockingFailureException ex){
+        return ResponseEntity.status(HttpStatus.CONFLICT).body("This wallet was updated by another request. Please retry.");
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<String>handleIntegrityViolation(DataIntegrityViolationException ex){
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
 }
