@@ -154,7 +154,10 @@ Managed by Flyway. Migration files live in `src/main/resources/db/migration/`, n
 - [x] Input validation (Bean Validation: `@NotBlank`, `@NotNull`, `@Positive`, `@Email` on request DTOs, enforced via `@Valid`)
 - [x] `@Transactional` on `TransactionService.createTransaction` — verified with a real rollback test AND an accidental real-world reproduction of ledger corruption without it
 - [x] Environment profiles (`dev`/`prod`) — `application-dev.properties`, `application-prod.properties`, activated via `spring.profiles.active` or `SPRING_PROFILES_ACTIVE`
-- [ ] Concurrency / optimistic locking for simultaneous transactions on the same wallet
+- [x] Concurrency / optimistic locking (`@Version` on `Wallet`, `V3__add_wallet_version.sql`) — verified via version-count and balance-sum checks after concurrent writes
+- [x] `OptimisticLockingFailureException` handled in `GlobalExceptionHandler` → returns `409 Conflict` with a friendly retry message
+- [x] Idempotency keys — `Transaction.idempotencyKey` (unique), duplicate requests return the original result instead of reprocessing. Verified: identical request sent twice produced one transaction row and one balance update, not two.
+- [x] `DataIntegrityViolationException` handled in `GlobalExceptionHandler` (409) — discovered via a real, deliberately-triggered check-then-act race condition on simultaneous idempotent requests; `@Transactional` confirmed to correctly roll back the losing request's wallet update
 - [ ] Idempotency keys for safe request retries
 - [ ] Spring Security + JWT authentication
 - [ ] Broader automated test coverage (currently one repository integration test)

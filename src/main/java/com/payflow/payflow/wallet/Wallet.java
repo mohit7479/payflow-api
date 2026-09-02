@@ -15,6 +15,9 @@ import java.util.UUID;
 @Setter
 public class Wallet {
 
+    @Version
+    private Long version;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;

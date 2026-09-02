@@ -998,7 +998,171 @@ Environment variables **override** whatever's written in the properties files �
 
 ---
 
-## Known Gaps — ALL RESOLVED
+## Optimistic Locking — Preventing Race Conditions
+
+### The problem `@Transactional` does NOT solve
+
+`@Transactional` guarantees that all writes *within one method call* succeed or fail together. It says nothing about two *separate, simultaneous* calls to the same method, racing against each other.
+
+**The race condition, concretely:** two requests debit ₹400 each from a ₹500 wallet at nearly the same instant. If both read `balance = 500` before either writes back, both independently calculate `newBalance = 100` — and the wallet ends up at `100` instead of correctly going negative/being rejected, silently losing ₹300 worth of debits with no error at all.
+
+### The fix: `@Version`
+
+```java
+import jakarta.persistence.Version;
+
+@Version
+private Long version;
+```
+
+A hidden field JPA manages entirely automatically — never set or read manually in business logic. On every update, Hibernate:
+1. Increments the version number
+2. Includes the *original* version in the `UPDATE`'s `WHERE` clause (e.g. `WHERE id = ? AND version = 0`)
+
+If another transaction already updated the row in the meantime (bumping the version), the `WHERE` clause matches zero rows, and Hibernate throws `OptimisticLockingFailureException` — the losing request fails loudly instead of silently overwriting a correct update.
+
+**Requires a new column via migration** (never edit an applied migration):
+```sql
+-- V3__add_wallet_version.sql
+ALTER TABLE wallets ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
+```
+
+### Verifying it — and an honest limitation of manual testing
+
+Sequential `curl` calls in separate terminal tabs almost never truly overlap (human reaction time between commands is milliseconds too slow). Even launching two requests genuinely in parallel with bash's `&`/`wait`:
+
+```bash
+curl -X POST .../api/transactions -d '{...}' & \
+curl -X POST .../api/transactions -d '{...}' & \
+wait
+```
+
+...may not reliably force a collision on a fast local database — a full read-modify-write cycle can complete in single-digit milliseconds. **Indirect verification works just as well:** after N successful concurrent-ish writes, check that `version` incremented by exactly N, and that the balance reflects the exact sum of all writes, with nothing lost. If the numbers match exactly, the locking mechanism is proven sound — a real collision under genuine load would surface as `OptimisticLockingFailureException` on the losing request, which the current code doesn't yet catch/handle gracefully (a good candidate for a future `@ExceptionHandler` in `GlobalExceptionHandler`).
+
+### Optimistic vs. pessimistic locking (concept only, optimistic chosen here)
+
+- **Optimistic** (used here) — assumes conflicts are rare; only checks for conflict at save time via the version number; losing writes fail and can be retried
+- **Pessimistic** — locks the row the moment it's read for update, blocking all other readers/writers until released; heavier-handed, reserved for cases where conflicts are frequent/expected
+
+---
+
+## Idempotency Keys — Preventing Duplicate Charges on Retry
+
+### The problem
+
+A client sends a debit request; the request succeeds on the server, but the *response* is lost (network drop, timeout). The client can't tell "it failed" from "it succeeded but I didn't hear back," so it retries — and without protection, the same debit gets processed twice.
+
+**Idempotent**: an operation where doing it once has the same effect as doing it many times. `GET` is naturally idempotent; `POST` (create/modify) is not, by default — idempotency keys close this gap.
+
+### The mechanism
+
+The client generates a unique key (e.g. a UUID) once, before sending a request, and includes it with every attempt — including retries. The server remembers every key it has already processed; if a request arrives with a key already seen, it returns the *original* result without reprocessing.
+
+### Implementation, piece by piece
+
+**1. Database — unique, required column** (new migration; existing test data wiped first since it predates the column and can't satisfy `NOT NULL`):
+```sql
+-- V4__add_idempotency_key.sql
+DELETE FROM transactions;
+ALTER TABLE transactions ADD COLUMN idempotency_key VARCHAR(255) NOT NULL UNIQUE;
+```
+*Real-world note: you can't just `DELETE` production data. The safe pattern there is: add the column nullable first, backfill every existing row with a placeholder, then lock in `NOT NULL`/`UNIQUE` afterward — a common safe-migration technique for live tables.*
+
+**2. Entity** — new field, mirroring the SQL constraint, plus a constructor update:
+```java
+@Column(name = "idempotency_key", nullable = false, unique = true)
+private String idempotencyKey;
+
+public Transaction(Wallet wallet, BigDecimal amount, TransactionType type, String idempotencyKey) {
+    this.wallet = wallet;
+    this.amount = amount;
+    this.type = type;
+    this.idempotencyKey = idempotencyKey;
+}
+```
+
+**3. DTO** — add the field, validated like any other required `String`:
+```java
+public record CreateTransactionRequest(
+    @NotNull UUID walletId,
+    @NotNull @Positive BigDecimal amount,
+    TransactionType type,
+    @NotBlank String idempotencyKey
+) {
+}
+```
+
+**4. Repository** — one more derived query method, identical shape to every prior one:
+```java
+Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
+```
+
+**5. Service — the actual logic, an early return at the top of the method:**
+```java
+@Transactional
+public TransactionResponse createTransaction(CreateTransactionRequest request) {
+    Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(request.idempotencyKey());
+    if (existing.isPresent()) {
+        Transaction alreadyProcessed = existing.get();
+        return new TransactionResponse(
+                alreadyProcessed.getId(),
+                alreadyProcessed.getWallet().getId(),
+                alreadyProcessed.getAmount(),
+                alreadyProcessed.getType(),
+                alreadyProcessed.getCreatedAt()
+        );
+    }
+
+    // ...unchanged: look up wallet, update balance, save, create + save the new Transaction
+    // (now passing request.idempotencyKey() as the constructor's 4th argument)
+}
+```
+
+**New concept: early return.** `return` doesn't just end a method with its final value — it can exit the method immediately, partway through, the moment a condition is met, skipping everything written below it for that call. This is the entire mechanism that makes idempotency work: a retry with a known key never reaches the wallet-update logic at all.
+
+**6. Controller — no changes needed.** Since `idempotencyKey` was added directly to the DTO (arrives in the JSON body), the existing `@RequestBody`-based endpoint already carries it through automatically. *(Real-world alternative: many production APIs, e.g. Stripe, pass the key via an `Idempotency-Key` HTTP header instead, read with `@RequestHeader("Idempotency-Key") String key` — a legitimate alternative design, since the key is arguably request metadata rather than business data. Both are valid.)*
+
+### Verified against a real database (sequential retry)
+
+Sent the identical request twice with `idempotencyKey: "test-key-001"`. Both responses returned the **exact same transaction `id` and `createdAt`** — proof the second call never created a new row. Confirmed directly: `SELECT count(*) FROM transactions WHERE idempotency_key = 'test-key-001'` returned exactly `1`, and the wallet balance reflected only one `100` credit despite two identical requests.
+
+### A real race condition discovered and fixed: check-then-act
+
+Testing two genuinely parallel requests with the **same, brand-new** idempotency key (using `&`/`wait`, same technique as the optimistic-locking test) exposed a real gap: `findByIdempotencyKey` and the eventual `save` aren't atomic together — if both requests run the check before either has saved, **both** can see "no existing transaction" and both proceed. This is a classic **check-then-act race condition**.
+
+**What actually caught it:** the database's own `UNIQUE` constraint on `idempotency_key`. The first request to actually `INSERT` succeeds; the second hits `duplicate key value violates unique constraint "transactions_idempotency_key_key"`, surfacing as `DataIntegrityViolationException`.
+
+**Handled with one more `@ExceptionHandler`:**
+```java
+@ExceptionHandler(DataIntegrityViolationException.class)
+public ResponseEntity<String> handleIntegrityViolation(DataIntegrityViolationException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body("someone already used this idempotency key");
+}
+```
+*(Note: this exception is broad — it fires on any DB constraint violation, not only idempotency-key collisions. Fine for the app's current size; worth narrowing with `ex.getMessage()` inspection as the app grows.)*
+
+**Critically, `@Transactional` still protected the money.** The losing request's wallet-balance update was fully rolled back when its `Transaction` insert failed — verified directly: wallet balance after the race showed the expected value based on exactly one successful credit, not two. Two independent safety mechanisms (the `UNIQUE` constraint catching the duplicate, and `@Transactional` guaranteeing atomic rollback) worked together correctly under a genuine, deliberately-triggered concurrent collision.
+
+### `@RequestHeader` — the alternative design (not used, but understood)
+
+Many production APIs (e.g. Stripe) pass the idempotency key via an HTTP **header** rather than the request body, since it's arguably request metadata rather than business data:
+
+```java
+@PostMapping
+public TransactionResponse createTransaction(
+    @RequestHeader("Idempotency-Key") String idempotencyKey,
+    @Valid @RequestBody CreateTransactionRequest request
+) {
+```
+
+- `@RequestBody` pulls from the request's **body** (the JSON payload); `@RequestHeader` pulls from its **headers** (request metadata, like `Content-Type`)
+- `@RequestHeader(value = "...", required = false)` makes a header optional — missing header becomes `null` instead of a `400`
+
+PayFlow's implementation keeps the key in the DTO/body instead — simpler, no header-name coordination needed, and an equally legitimate design choice.
+
+---
+
+## Known Gaps — remaining, honest list
 
 1. ~~No global exception handling~~ → ✅ fixed (`@ControllerAdvice`, custom exceptions)
 2. ~~No input validation~~ → ✅ fixed (Bean Validation + `@Valid`)
