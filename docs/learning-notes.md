@@ -1162,6 +1162,344 @@ PayFlow's implementation keeps the key in the DTO/body instead — simpler, no h
 
 ---
 
+## Spring Security + JWT — In Progress
+
+### Authentication vs. Authorization
+- **Authentication** — "who are you?" (login, proving identity)
+- **Authorization** — "what are you allowed to do?" (access control on resources)
+
+### Password hashing — why and how
+
+Passwords are never stored in plain text. **Hashing** is one-way: `"mypassword123"` → a fixed-length string, with no way to reverse it back to the original. Login works by hashing the entered password and comparing *hashes*, never by decrypting anything.
+
+**Why BCrypt specifically** (not generic hashes like MD5/SHA-256): BCrypt is deliberately slow and adaptive (configurable to stay slow as hardware improves), defeating brute-force attacks. It also automatically applies a random **salt** per password, so two identical passwords produce different stored hashes — defeating precomputed "rainbow table" attacks. Spring Security's `BCryptPasswordEncoder` provides `.encode(rawPassword)` (hash it) and `.matches(rawPassword, storedHash)` (verify it) — raw passwords are never manually compared.
+
+### Adding Spring Security — the immediate, dramatic effect
+
+```groovy
+implementation 'org.springframework.boot:spring-boot-starter-security'
+```
+
+**The moment this is added, Spring Security locks down the ENTIRE application by default** — every endpoint, including previously-open ones like `/api/health`, immediately starts requiring authentication. This is intentional: "secure by default, then deliberately open up what should be public."
+
+Verified directly: after adding the dependency and a full `./gradlew clean build --refresh-dependencies` + restart, `curl -i http://localhost:8080/api/health` returned:
+```
+HTTP/1.1 401
+WWW-Authenticate: Basic realm="Realm", charset="UTF-8"
+```
+`WWW-Authenticate: Basic` shows Spring Security defaulting to HTTP Basic Auth (username/password) on every request until properly configured.
+
+### Password field added to User (Stage 1, complete)
+
+- Migration `V5__add_user_password.sql` — `ALTER TABLE users ADD COLUMN password VARCHAR(255) NOT NULL DEFAULT 'CHANGE_ME';` (placeholder default for existing rows, since deleting them would cascade-break their wallets/transactions — the safer "Option B" backfill technique, not a wipe)
+- `User.java` — new `password` field (`@Column(nullable = false)`), added as a required constructor parameter
+- `CreateUserRequest` — new `password` field, `@NotBlank` validated
+
+### `@Configuration` + `@Bean` — when to use this vs. a direct annotation
+
+**The core rule:** annotate a class directly (`@Service`, `@RestController`, `@Repository`-style interfaces) only when you own the file and can edit it. For a class that comes from an external library (like `BCryptPasswordEncoder`, from Spring Security's jar), you cannot add an annotation to code you don't own — instead, write a `@Bean` method inside a `@Configuration` class that constructs it yourself and hands the result to Spring:
+
+```java
+package com.payflow.payflow.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+```
+
+- **Bean** — simply the general term for any object Spring creates and manages, so other classes can receive it via constructor injection instead of building it themselves. `@Service`/`@RestController` classes are beans too — this isn't a new kind of thing, just a name for what's already been happening.
+- **Special case worth knowing:** `@Repository`-style interfaces (`extends JpaRepository<...>`) don't need `@Configuration`/`@Bean` either — Spring Data JPA has its own automatic scanning mechanism specifically for repository interfaces. `@Configuration`+`@Bean` is the general-purpose fallback for everything else that has no such automatic detection.
+
+**`UserService` updated** to inject the real `PasswordEncoder` bean (not `SecurityConfig` itself — a config class is a "recipe," never used directly elsewhere) and hash the password before saving:
+```java
+private final PasswordEncoder passwordEncoder;
+// ...
+String hashedPassword = passwordEncoder.encode(request.password());
+User user = new User(request.email(), hashedPassword, request.fullName());
+```
+
+### Debugging story: `ClassNotFoundException: PasswordEncoder` despite the dependency being present
+
+After adding `SecurityConfig`, the app failed to start with `Failed to introspect Class [SecurityConfig]` → `NoClassDefFoundError` → `ClassNotFoundException: org.springframework.security.crypto.password.PasswordEncoder`. Verified the dependency itself was genuinely present and resolved correctly via `./gradlew dependencies --configuration compileClasspath | grep security`. The actual cause: IntelliJ's DevTools-based hot-restart (`RestartClassLoader` visible in the stack trace) failed to properly reload the classpath after a **new dependency** was added — DevTools' lightweight restart can handle code changes but sometimes not new libraries. **Fix:** bypass IntelliJ's run button and DevTools entirely for one genuinely clean run: `./gradlew clean bootRun` from the terminal. This succeeded immediately, confirming the diagnosis. General lesson reinforced again: when something that "should" work doesn't, a full clean restart — outside any hot-reload mechanism — is always worth trying early, not as a last resort.
+
+### Confirmed: Spring Security now genuinely active
+
+`Using generated security password: <uuid>` appeared in the startup log, and `curl -i -X POST /api/users` (registration) returned `401 Unauthorized` — confirming Spring Security is locking down *every* endpoint by default, including registration, which obviously needs to become public. This is the expected next configuration step, not a bug.
+
+### `SecurityFilterChain` — defining which endpoints are public
+
+A bean that replaces Spring Security's all-or-nothing default with explicit, custom rules:
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/api/users", "/api/auth/**").permitAll()
+            .anyRequest().authenticated()
+        );
+    return http.build();
+}
+```
+
+- **`HttpSecurity http`** — a builder object for constructing security rules, handed in automatically
+- **`.csrf(AbstractHttpConfigurer::disable)`** — CSRF protection is a browser/cookie-based concern for server-rendered sites with session cookies; disabling it is standard and expected for a stateless, token-based JSON API like this one (not a security hole in this context)
+- **`.authorizeHttpRequests(auth -> ...)`** — where the actual access rules live; checked top to bottom, specific rules before the catch-all
+- **`.requestMatchers("/api/users", "/api/auth/**").permitAll()`** — these paths need no login (`**` = wildcard, matches the path and everything beneath it)
+- **`.anyRequest().authenticated()`** — everything else requires a valid, authenticated identity
+- **`throws Exception`** on the method signature — `HttpSecurity.build()` is declared to throw a checked exception internally; the conventional pattern here is to just declare `throws Exception` on the bean method itself rather than wrapping it in `try`/`catch`
+
+**Method reference vs. lambda — the practical rule:** use a method reference (`AbstractHttpConfigurer::disable`) only when a lambda's *entire* body is "call one existing method on the input, unchanged, no extra logic" (same pattern as `Transaction::getAmount` from Streams). Anything with a condition, calculation, or multiple steps must stay a lambda (e.g. `pages -> pages > 100` has no method-reference equivalent).
+
+### Verified end to end
+
+- `POST /api/users` (registration) → `200 OK` with a normal `UserResponse` — confirmed public
+- `POST /api/wallets` (no credentials) → rejected — confirmed protected
+- `SELECT password FROM users` → genuine BCrypt hash (`$2a$...`), never the plain-text password — confirmed hashing works
+
+### A subtlety worth understanding: `403` instead of `401` on protected endpoints
+
+Earlier (before defining a custom `SecurityFilterChain`), unauthenticated requests to `/api/health` returned `401` with a `WWW-Authenticate: Basic` header — Spring's *auto-configured default* security setup includes a Basic Auth challenge mechanism. Once a custom `SecurityFilterChain` bean is defined, it **fully replaces** that default — and since this custom chain doesn't yet configure any explicit authentication mechanism (no `.httpBasic()`, and no JWT filter built yet), Spring Security has no way to issue a `WWW-Authenticate` challenge, so it returns `403 Forbidden` instead for `.anyRequest().authenticated()` failures. This is expected and not a bug to fix — genuinely correct authentication (a real JWT filter) is still Stage 3–4 ahead; the specific status code is a minor detail until then.
+
+### JWT concept
+
+A JWT has three dot-separated parts: header (metadata), payload (claims — data), signature (proof of integrity). **Not encrypted, only signed** — the payload is plainly readable by anyone (just Base64), but any tampering breaks the signature, which the server checks on every use. Never put sensitive data (passwords) in the payload — only things safe to be technically readable, like an email or user id.
+
+### JWT library and configuration
+
+```groovy
+implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+```
+Split into `-api` (classes you code against) and `runtimeOnly` `-impl`/`-jackson` (the actual implementation, only needed at runtime, never referenced directly).
+
+```properties
+jwt.secret=ThisIsATemporaryDevelopmentSecretKeyChangeInProduction123456
+jwt.expiration=3600000
+```
+Secret lives in config, never hardcoded in Java (same principle as DB credentials). Expiration is in **milliseconds** (3600000 = 1 hour).
+
+### `JwtUtil` — token generation
+
+```java
+package com.payflow.payflow.security;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.util.Date;
+
+@Component
+public class JwtUtil {
+    @Value("${jwt.secret}")
+    private String secretKey;
+    @Value("${jwt.expiration}")
+    private long expiration;
+
+    public String generateToken(String email) {
+        return Jwts.builder()
+                .subject(email)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(secretKey.getBytes());
+    }
+}
+```
+
+- **`@Value("${jwt.secret}")`** — injects a value from `application*.properties` into a field; `${...}` signals "read from configuration," distinct from a hardcoded string
+- **`@Component`** — general-purpose Spring-managed bean, used here for a "helper tool" class rather than a business-logic-holder (`@Service`) or controller
+- **`Jwts.builder()`** — JJWT's builder pattern for constructing a token: `.subject()`, `.issuedAt()`, `.expiration()`, `.signWith()`, `.compact()` (finalizes into the actual token string)
+- **`Keys.hmacShaKeyFor(secretKey.getBytes())`** — converts the raw secret string into the cryptographic key format the signing algorithm requires
+
+### Login DTOs, `AuthService`, and `AuthController`
+
+```java
+public record LoginRequest(@NotBlank String email, @NotBlank String password) {
+}
+
+public record LoginResponse(String token) {
+}
+```
+
+**Caught and fixed an architectural inconsistency:** the login logic was initially written directly inside `AuthController`, breaking the Controller → Service → Repository pattern used everywhere else in the app (`UserController`/`UserService`, `WalletController`/`WalletService`, etc.). Extracted into a proper `AuthService`:
+
+```java
+package com.payflow.payflow.auth;
+
+@Service
+public class AuthService {
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+    }
+
+    public LoginResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new ResourceNotFoundException("Invalid email or password"));
+
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            throw new ResourceNotFoundException("Invalid email or password");
+        }
+
+        String token = jwtUtil.generateToken(request.email());
+        return new LoginResponse(token);
+    }
+}
+```
+
+`AuthController` now stays properly thin, matching every other controller in the app — depends only on `AuthService`, no direct access to repositories, encoders, or `JwtUtil`:
+
+```java
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    private final AuthService authService;
+
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
+
+    @PostMapping("/login")
+    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
+    }
+}
+```
+
+**New method used: `passwordEncoder.matches(rawPassword, storedHash)`** — the counterpart to `.encode(...)`. Hashes the entered password internally and compares it to the stored hash — returns `true`/`false`, never reverses anything.
+
+**Security-conscious error design:** both "email not found" and "wrong password" throw the *same* generic message, `"Invalid email or password"` — deliberately not revealing to an attacker which part of their guess was correct, a standard real-world login security practice.
+
+**Verified end to end:** registered a user, logged in with correct credentials → `200 OK` with a genuine JWT (`eyJhbGc...`). Confirmed rejection behavior with a nonexistent/wrong-password login too.
+
+### Incident: entire local database wiped between sessions
+
+After a gap of several days, restarting the app failed with `FATAL: role "payflow" does not exist`. Investigation (`psql postgres -c "\du"`) showed the `payflow` role was gone entirely, and `psql payflow -c "\dt"` showed no tables at all — the whole local Postgres database had been reset (likely due to a Mac restart or Homebrew service reset; local dev Postgres installs aren't guaranteed persistent across all system events the way a properly configured server would be).
+
+**Recovery:** simply recreated the role/database with the original setup commands, then ran `./gradlew clean bootRun` — Flyway automatically re-ran all 5 migrations from scratch, fully reconstructing the schema with zero manual SQL needed.
+
+**The lesson:** migration files are the real, durable source of truth for schema — actual data can be lost, but as long as the migration files exist in the project (and are committed to Git), the database structure is always 100% reproducible from nothing. This is exactly why hand-editing a database schema directly (instead of via migrations) is risky — it isn't recorded anywhere durable.
+
+### `JwtUtil` — token validation (the reverse of generation)
+
+```java
+public String extractEmail(String token) {
+    return Jwts.parser()
+            .verifyWith(getSigningKey())
+            .build()
+            .parseSignedClaims(token)
+            .getPayload()
+            .getSubject();
+}
+```
+`Jwts.parser()` mirrors `Jwts.builder()`; `.verifyWith(getSigningKey())` checks the signature against the same secret used to sign it — fails if tampered with or signed by a different key. `.getPayload().getSubject()` retrieves the identity set during generation.
+
+### `JwtAuthFilter` — validating tokens on every request
+
+**Concept: a Filter.** Spring Security's "guard at the door" is implemented as a chain of filters, each inspecting the request before passing it along. `OncePerRequestFilter` is a base class guaranteeing exactly one execution per request; extend it and override `doFilterInternal`.
+
+```java
+package com.payflow.payflow.security;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.Collections;
+
+@Component
+public class JwtAuthFilter extends OncePerRequestFilter {
+    private final JwtUtil jwtUtil;
+
+    public JwtAuthFilter(JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            String email = jwtUtil.extractEmail(token);
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+        }
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+**Critical ordering rule caught and fixed during development:** `filterChain.doFilter(request, response)` — "let this request continue to the next filter/controller" — must always be the **last** thing this method does. It was initially placed *first* by mistake; since it hands off the entire rest of request processing immediately, anything written after it runs too late to affect whether the request is treated as authenticated. Token inspection must come first, `doFilter(...)` last.
+
+**New Spring Security concepts:**
+- `request.getHeader("Authorization")` / `"Bearer <token>"` convention — the standard way a client presents a token; `.startsWith("Bearer ")` + `.substring(7)` extracts the raw token (7 = length of `"Bearer "`)
+- **`SecurityContextHolder`** — a request-scoped slot where Spring Security stores "who is making this request." Later checks (like `.anyRequest().authenticated()`) read from here.
+- **`UsernamePasswordAuthenticationToken(email, null, Collections.emptyList())`** — Spring Security's standard object representing a successfully authenticated identity, despite the historical name. `null` credentials (already verified via the JWT signature, no need to re-check a password), empty roles list (no role-based authorization built yet).
+
+### Registering the filter with `SecurityFilterChain`
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    http
+        .csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/api/users", "/api/auth/**").permitAll()
+            .anyRequest().authenticated()
+        )
+        .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+    return http.build();
+}
+```
+`JwtAuthFilter` is injected as a second bean-method parameter (same DI mechanism as always). `.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)` inserts the custom filter *before* Spring Security's own built-in authentication filter — necessary so the identity is already set in `SecurityContextHolder` by the time Spring's own authorization check runs.
+
+### Verified end to end — the complete authentication chain
+
+1. `POST /api/wallets` with **no** `Authorization` header → rejected
+2. `POST /api/auth/login` with valid credentials → real JWT returned
+3. `POST /api/wallets` **with** `Authorization: Bearer <token>` → succeeds, returns a genuine `WalletResponse`
+
+This confirms the full chain works: registration → hashed password storage → login → signed token issuance → token validation on a protected endpoint → identity correctly recognized and the request allowed through.
+
+### Remaining plan
+1-4. ~~Password hashing, security config, login endpoint, JWT generation/validation~~ → all done, fully verified
+5. **Authorization** (not yet built) — currently any valid token can access *any* wallet/transaction, regardless of ownership. The next real step is checking that the authenticated user actually owns the resource they're requesting (e.g., a user should only be able to create/view wallets tied to their own account) — true authorization, not just authentication.
+
+---
+
 ## Known Gaps — remaining, honest list
 
 1. ~~No global exception handling~~ → ✅ fixed (`@ControllerAdvice`, custom exceptions)
@@ -1338,26 +1676,26 @@ public class Transaction {
 ### V1__init_schema.sql
 ```sql
 CREATE TABLE users (
-                      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                      email VARCHAR(255) NOT NULL UNIQUE,
-                      full_name VARCHAR(255) NOT NULL,
-                      created_at TIMESTAMP NOT NULL DEFAULT now()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    full_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE TABLE wallets (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        user_id UUID NOT NULL REFERENCES users(id),
-                        balance NUMERIC(19, 4) NOT NULL DEFAULT 0,
-                        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
-                        created_at TIMESTAMP NOT NULL DEFAULT now()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    balance NUMERIC(19, 4) NOT NULL DEFAULT 0,
+    currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+    created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE TABLE transactions (
-                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                             wallet_id UUID NOT NULL REFERENCES wallets(id),
-                             amount NUMERIC(19, 4) NOT NULL,
-                             type VARCHAR(20) NOT NULL,
-                             created_at TIMESTAMP NOT NULL DEFAULT now()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id UUID NOT NULL REFERENCES wallets(id),
+    amount NUMERIC(19, 4) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 ```
 

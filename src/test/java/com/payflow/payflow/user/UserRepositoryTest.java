@@ -19,7 +19,7 @@ public class UserRepositoryTest {
 
     @Test
     void shouldSaveAndFindByEmail(){
-        User user=new User("test@gmail.com","Mohit");
+        User user=new User("test@gmail.com","Mohit123","Mohit");
         User savedUser = userRepository.save(user);
         assertNotNull(savedUser.getId());
 

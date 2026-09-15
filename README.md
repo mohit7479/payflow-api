@@ -158,17 +158,10 @@ Managed by Flyway. Migration files live in `src/main/resources/db/migration/`, n
 - [x] `OptimisticLockingFailureException` handled in `GlobalExceptionHandler` → returns `409 Conflict` with a friendly retry message
 - [x] Idempotency keys — `Transaction.idempotencyKey` (unique), duplicate requests return the original result instead of reprocessing. Verified: identical request sent twice produced one transaction row and one balance update, not two.
 - [x] `DataIntegrityViolationException` handled in `GlobalExceptionHandler` (409) — discovered via a real, deliberately-triggered check-then-act race condition on simultaneous idempotent requests; `@Transactional` confirmed to correctly roll back the losing request's wallet update
-- [ ] Idempotency keys for safe request retries
-- [ ] Spring Security + JWT authentication
+- [x] Spring Security + JWT authentication — registration public, login issues signed tokens, `JwtAuthFilter` validates tokens on protected endpoints. Verified end to end: no token → rejected; valid token from real login → succeeds against `/api/wallets`.
+- [ ] Authorization (ownership checks) — any valid token currently grants access to *any* wallet/transaction; no check yet that the authenticated user owns the resource they're requesting
 - [ ] Broader automated test coverage (currently one repository integration test)
 - [ ] OpenAPI/Swagger documentation
 - [ ] Testcontainers for integration tests
-- [ ] Dockerization
-- [ ] CI/CD pipeline
-- [ ] Bean validation
-- [ ] `@Transactional` boundaries, optimistic locking, idempotency keys
-- [ ] Spring Security + JWT authentication
-- [ ] OpenAPI/Swagger documentation
-- [ ] Integration tests with Testcontainers
 - [ ] Dockerization
 - [ ] CI/CD pipeline

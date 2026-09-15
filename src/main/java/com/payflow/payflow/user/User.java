@@ -20,6 +20,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false)
+    private String password;
+
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
@@ -29,8 +32,9 @@ public class User {
     protected User() {
     }
 
-    public User(String email, String fullName) {
+    public User(String email,String password, String fullName) {
         this.email = email;
+        this.password=password;
         this.fullName = fullName;
     }
 
